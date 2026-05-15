@@ -1,7 +1,7 @@
 const bcrypt = require('bcrypt');
-const jwt    = require('jsonwebtoken');
+const jwt = require('jsonwebtoken');
 const { validationResult } = require('express-validator');
-const db     = require('../config/db');
+const db = require('../config/db');
 
 const SALT_ROUNDS = 12;
 
@@ -12,7 +12,6 @@ exports.register = async (req, res, next) => {
     if (!errors.isEmpty()) return res.status(422).json({ success: false, errors: errors.array() });
 
     const { name, email, password, phone } = req.body;
-
     const [exists] = await db.query('SELECT id FROM users WHERE email = ?', [email]);
     if (exists.length > 0) return res.status(409).json({ success: false, message: 'Email already registered.' });
 
@@ -30,6 +29,13 @@ exports.register = async (req, res, next) => {
       process.env.JWT_SECRET,
       { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
     );
+
+    res.cookie('token', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'none',
+      maxAge: 7 * 24 * 60 * 60 * 1000
+    });
 
     res.status(201).json({
       success: true,
@@ -60,17 +66,19 @@ exports.login = async (req, res, next) => {
       { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
     );
 
-   res.cookie('token', token, {
-  httpOnly: true,        // JS cannot read this cookie
-  secure: process.env.NODE_ENV === 'production', // HTTPS only in production
-  sameSite: 'none',      // needed for cross-domain (Vercel → Railway)
-  maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days in milliseconds
-});
-res.json({
-  success: true,
-  message: 'Login successful.',
-  user: { ... }  // no token in response body anymore
-});
+    res.cookie('token', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'none',
+      maxAge: 7 * 24 * 60 * 60 * 1000
+    });
+
+    res.json({
+      success: true,
+      message: 'Login successful.',
+      token,
+      user: { id: user.id, name: user.name, email: user.email, phone: user.phone },
+    });
   } catch (err) { next(err); }
 };
 
@@ -92,16 +100,18 @@ exports.adminLogin = async (req, res, next) => {
     );
 
     res.cookie('adminToken', token, {
-  httpOnly: true,
-  secure: process.env.NODE_ENV === 'production',
-  sameSite: 'none',
-  maxAge: 24 * 60 * 60 * 1000 // 1 day
-});
-res.json({
-  success: true,
-  message: 'Admin login successful.',
-  admin: { ... }
-});
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'none',
+      maxAge: 24 * 60 * 60 * 1000
+    });
+
+    res.json({
+      success: true,
+      message: 'Admin login successful.',
+      token,
+      admin: { id: admin.id, name: admin.name, email: admin.email, role: admin.role },
+    });
   } catch (err) { next(err); }
 };
 
@@ -128,6 +138,8 @@ exports.updateProfile = async (req, res, next) => {
     res.json({ success: true, message: 'Profile updated successfully.' });
   } catch (err) { next(err); }
 };
+
+// ─── Logout ────────────────────────────────────────────────
 exports.logout = (req, res) => {
   res.clearCookie('token', {
     httpOnly: true,
@@ -137,6 +149,7 @@ exports.logout = (req, res) => {
   res.json({ success: true, message: 'Logged out.' });
 };
 
+// ─── Admin Logout ──────────────────────────────────────────
 exports.adminLogout = (req, res) => {
   res.clearCookie('adminToken', {
     httpOnly: true,
