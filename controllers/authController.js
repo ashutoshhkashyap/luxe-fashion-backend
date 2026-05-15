@@ -60,12 +60,17 @@ exports.login = async (req, res, next) => {
       { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
     );
 
-    res.json({
-      success: true,
-      message: 'Login successful.',
-      token,
-      user: { id: user.id, name: user.name, email: user.email, phone: user.phone, avatar_url: user.avatar_url },
-    });
+   res.cookie('token', token, {
+  httpOnly: true,        // JS cannot read this cookie
+  secure: process.env.NODE_ENV === 'production', // HTTPS only in production
+  sameSite: 'none',      // needed for cross-domain (Vercel → Railway)
+  maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days in milliseconds
+});
+res.json({
+  success: true,
+  message: 'Login successful.',
+  user: { ... }  // no token in response body anymore
+});
   } catch (err) { next(err); }
 };
 
@@ -86,12 +91,17 @@ exports.adminLogin = async (req, res, next) => {
       { expiresIn: '1d' }
     );
 
-    res.json({
-      success: true,
-      message: 'Admin login successful.',
-      token,
-      admin: { id: admin.id, name: admin.name, email: admin.email, role: admin.role },
-    });
+    res.cookie('adminToken', token, {
+  httpOnly: true,
+  secure: process.env.NODE_ENV === 'production',
+  sameSite: 'none',
+  maxAge: 24 * 60 * 60 * 1000 // 1 day
+});
+res.json({
+  success: true,
+  message: 'Admin login successful.',
+  admin: { ... }
+});
   } catch (err) { next(err); }
 };
 
@@ -117,4 +127,21 @@ exports.updateProfile = async (req, res, next) => {
     );
     res.json({ success: true, message: 'Profile updated successfully.' });
   } catch (err) { next(err); }
+};
+exports.logout = (req, res) => {
+  res.clearCookie('token', {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'none'
+  });
+  res.json({ success: true, message: 'Logged out.' });
+};
+
+exports.adminLogout = (req, res) => {
+  res.clearCookie('adminToken', {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'none'
+  });
+  res.json({ success: true, message: 'Admin logged out.' });
 };

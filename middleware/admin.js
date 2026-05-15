@@ -6,7 +6,7 @@ const adminMiddleware = (req, res, next) => {
     return res.status(401).json({ success: false, message: 'Admin access denied. No token provided.' });
   }
 
-  const token = header.split(' ')[1];
+  const token = req.cookies?.adminToken || req.headers.authorization?.split(' ')[1];
   try {
     const decoded = jwt.verify(token, process.env.JWT_ADMIN_SECRET);
     if (!decoded.isAdmin) {
