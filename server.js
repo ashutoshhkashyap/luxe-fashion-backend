@@ -1,9 +1,9 @@
 require('dotenv').config();
-const express    = require('express');
-const cors       = require('cors');
+const express = require('express');
+const cors = require('cors');
 const rateLimit = require('express-rate-limit');
 const cookieParser = require('cookie-parser');
-const path       = require('path');
+const path = require('path');
 
 const authRoutes = require('./routes/auth');
 const productRoutes = require('./controllers/productController');
@@ -15,22 +15,33 @@ const errorHandler = require('./middleware/error');
 
 // Import product router directly
 const { Router } = require('express');
-const prodCtrl   = require('./controllers/productController');
-const adminMw    = require('./middleware/admin');
-const upload     = require('./middleware/upload');
+const prodCtrl = require('./controllers/productController');
+const adminMw = require('./middleware/admin');
+const upload = require('./middleware/upload');
 const productsRouter = Router();
-productsRouter.get('/',            prodCtrl.getAllProducts);
-productsRouter.get('/:slugOrId',   prodCtrl.getProduct);
-productsRouter.post('/',           adminMw, upload.array('images', 5), prodCtrl.createProduct);
-productsRouter.put('/:id',         adminMw, upload.array('images', 5), prodCtrl.updateProduct);
-productsRouter.delete('/:id',      adminMw, prodCtrl.deleteProduct);
+productsRouter.get('/', prodCtrl.getAllProducts);
+productsRouter.get('/:slugOrId', prodCtrl.getProduct);
+productsRouter.post('/', adminMw, upload.array('images', 5), prodCtrl.createProduct);
+productsRouter.put('/:id', adminMw, upload.array('images', 5), prodCtrl.updateProduct);
+productsRouter.delete('/:id', adminMw, prodCtrl.deleteProduct);
 
 const app = express();
 
 // ─── Middleware ────────────────────────────────────────────
 app.use(cors({
-  origin:      process.env.CLIENT_URL || 'http://localhost:5173',
-  credentials: true,
+  origin: function (origin, callback) {
+    const allowed = [
+      'http://localhost:5173',
+      'https://luxe-fashion-dusky.vercel.app',
+      process.env.CLIENT_URL,
+    ].filter(Boolean);
+    if (!origin || allowed.includes(origin) || origin.endsWith('.vercel.app')) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true
 }));
 app.use(cookieParser());
 // General rate limit — 100 requests per 15 min per IP
@@ -57,13 +68,13 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // ─── Routes ───────────────────────────────────────────────
-app.use('/api/auth',       authRoutes);
-app.use('/api/products',   productsRouter);
+app.use('/api/auth', authRoutes);
+app.use('/api/products', productsRouter);
 app.use('/api/categories', categoriesRouter);
-app.use('/api/cart',       cartRouter);
-app.use('/api/orders',     ordersRouter);
-app.use('/api/admin',      adminRouter);
-app.use('/api/wishlist',   wishlistRouter);
+app.use('/api/cart', cartRouter);
+app.use('/api/orders', ordersRouter);
+app.use('/api/admin', adminRouter);
+app.use('/api/wishlist', wishlistRouter);
 
 // Health check
 app.get('/api/health', (req, res) => res.json({ status: 'ok', timestamp: new Date().toISOString() }));
